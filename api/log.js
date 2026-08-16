@@ -1,4 +1,6 @@
-// Logs tested links + scores to a GitHub Gist (used as a plain .txt file).
+// Logs tested links + scores to a GitHub Gist, used as a persistent JSON
+// store: a JSON array of { link, score } objects, deduped by link.
+//
 // Why a Gist and not a local file: Vercel serverless functions have no
 // persistent disk — each request can run in a fresh container, so anything
 // written to the filesystem disappears immediately. A Gist is a small,
@@ -7,9 +9,9 @@
 //
 // Setup required (see README):
 //   GITHUB_TOKEN  - a GitHub personal access token with "gist" scope
-//   GIST_ID       - the id of a gist you created containing a file named links.txt
+//   GIST_ID       - the id of a gist you created containing a file named results.json
 
-const GIST_FILENAME = 'links.txt';
+const GIST_FILENAME = 'results.json';
 
 async function githubFetch(path, opts = {}) {
   const token = process.env.GITHUB_TOKEN;
@@ -23,6 +25,16 @@ async function githubFetch(path, opts = {}) {
       ...(opts.headers || {}),
     },
   });
+}
+
+function parseEntries(content) {
+  if (!content || !content.trim()) return [];
+  try {
+    const parsed = JSON.parse(content);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 export default async function handler(req, res) {
@@ -45,38 +57,31 @@ export default async function handler(req, res) {
       const r = await githubFetch('/gists/' + gistId);
       if (!r.ok) throw new Error('Could not read gist (HTTP ' + r.status + ')');
       const data = await r.json();
-      const content = data.files?.[GIST_FILENAME]?.content || '';
-      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-      return res.status(200).send(content);
+      const content = data.files?.[GIST_FILENAME]?.content || '[]';
+      const entries = parseEntries(content);
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      return res.status(200).json(entries);
     }
 
     if (req.method === 'POST') {
-      const { url, total, correct, wrong, unattempted, score } = req.body || {};
-      if (!url) return res.status(400).json({ error: 'Missing "url" in request body.' });
+      const { link, score } = req.body || {};
+      if (!link) return res.status(400).json({ error: 'Missing "link" in request body.' });
 
       const r = await githubFetch('/gists/' + gistId);
       if (!r.ok) throw new Error('Could not read gist (HTTP ' + r.status + ')');
       const data = await r.json();
-      const content = data.files?.[GIST_FILENAME]?.content || '';
+      const content = data.files?.[GIST_FILENAME]?.content || '[]';
+      const entries = parseEntries(content);
 
-      if (content.includes(url)) {
+      if (entries.some((e) => e.link === link)) {
         return res.status(200).json({ status: 'duplicate', message: 'This link is already logged — skipped.' });
       }
 
-      const line =
-        new Date().toISOString() +
-        ' | score:' + score +
-        ' correct:' + correct +
-        ' wrong:' + wrong +
-        ' unattempted:' + unattempted +
-        ' total:' + total +
-        ' | ' + url + '\n';
-
-      const updated = content + line;
+      entries.push({ link, score });
 
       const patchRes = await githubFetch('/gists/' + gistId, {
         method: 'PATCH',
-        body: JSON.stringify({ files: { [GIST_FILENAME]: { content: updated } } }),
+        body: JSON.stringify({ files: { [GIST_FILENAME]: { content: JSON.stringify(entries, null, 2) } } }),
       });
 
       if (!patchRes.ok) {
@@ -92,3 +97,4 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: err.message });
   }
 }
+

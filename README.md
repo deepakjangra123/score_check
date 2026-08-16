@@ -49,15 +49,16 @@ Once it works locally, deploy with `vercel --prod` as described below.
 ## Link logging (optional but on by default)
 
 Every time you click "Analyze & Score" with something in the URL field, the
-app logs that link + score to a plain text file — skipping it if that exact
+app logs `{ link, score }` to a small JSON store — skipping it if that exact
 link is already logged, so re-running the same link never duplicates it.
 
-Since Vercel functions have no persistent disk, the "text file" is actually
-a GitHub Gist (a small free hosted text file with an API). Set it up once:
+Since Vercel functions have no persistent disk, that store is actually a
+GitHub Gist (a small free hosted text file with an API) holding a JSON
+array. Set it up once:
 
 1. Go to https://gist.github.com/ → create a new **secret** gist.
-   - Filename: `links.txt`
-   - Content: anything, e.g. `# exam link log`
+   - Filename: `results.json`
+   - Content: `[]`
    - Click "Create secret gist".
 2. Copy the gist's ID from its URL — e.g. in
    `https://gist.github.com/yourname/abc123def456`, the ID is `abc123def456`.
@@ -70,8 +71,12 @@ a GitHub Gist (a small free hosted text file with an API). Set it up once:
 5. Redeploy (Deployments tab → ⋯ → Redeploy).
 
 Once set up, the "View link log →" link that appears above your results
-table opens the raw log (`/api/log`) in a new tab — one line per link, with
-timestamp and score.
+table opens `/api/log`, which returns the JSON array directly, e.g.:
+```json
+[
+  { "link": "https://cdn3.digialm.com/...", "score": 24 }
+]
+```
 
 If you skip this setup, the app still works fine for scoring — you'll just
 see a small "Log: ..." note under your results saying logging isn't

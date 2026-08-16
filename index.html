@@ -91,7 +91,6 @@
     <h2>1. Provide your response sheet(s)</h2>
     <div class="tabs">
       <div class="tab active" data-tab="file">Upload file</div>
-      <div class="tab" data-tab="paste">Paste HTML</div>
       <div class="tab" data-tab="url">Fetch URL</div>
     </div>
 
@@ -99,11 +98,6 @@
       <input type="file" id="fileInput" accept=".html,.htm" multiple>
       <div class="files-list" id="fileList"></div>
       <div class="note">Right-click the result page → <b>Save As → Webpage, HTML only</b> (or Ctrl+S), then upload it here. You can select multiple files at once if your exam has separate section pages.</div>
-    </div>
-
-    <div class="pane" id="pane-paste">
-      <textarea id="pasteInput" rows="8" placeholder="Right-click the result page → View Page Source → Select All → Copy → paste here"></textarea>
-      <div class="note">Most reliable if file upload doesn't work. Paste the full page source.</div>
     </div>
 
     <div class="pane" id="pane-url">
@@ -118,21 +112,9 @@
     <h2>2. Answer key & marking scheme</h2>
     <label>Answer key (one per line: <code>QuestionID,CorrectOptionID</code>)</label>
     <textarea id="keyInput" rows="8"></textarea>
-    <div class="row">
-      <div>
-        <label>Marks for correct</label>
-        <input type="number" id="markCorrect" value="4" step="0.25">
-      </div>
-      <div>
-        <label>Marks for wrong</label>
-        <input type="number" id="markWrong" value="-1" step="0.25">
-      </div>
-      <div>
-        <label>Marks for unattempted</label>
-        <input type="number" id="markUnattempted" value="0" step="0.25">
-      </div>
-    </div>
-    <div class="note">Pre-loaded with the key you supplied (150 questions). Edit or replace it entirely — format stays <code>QuestionID,CorrectOptionID</code>, one pair per line.</div>
+    <label>Marks per correct answer</label>
+    <input type="number" id="markCorrect" value="2" step="0.25">
+    <div class="note">No negative marking — wrong and unattempted answers always score 0. Pre-loaded with the key you supplied (150 questions); edit or replace it entirely, format stays <code>QuestionID,CorrectOptionID</code> one pair per line.</div>
   </div>
 
 </div>
@@ -430,19 +412,17 @@ document.getElementById('analyzeBtn').addEventListener('click', async ()=>{
       htmlSources.push(await f.text());
     }
   }
-  const pasted = document.getElementById('pasteInput').value.trim();
-  if(pasted) htmlSources.push(pasted);
   if(fetchedHTML) htmlSources.push(fetchedHTML);
 
   if(!htmlSources.length){
-    alert('Please upload a file, paste HTML, or fetch a URL first.');
+    alert('Please upload a file or fetch a URL first.');
     return;
   }
 
   const keyMap = parseAnswerKey(document.getElementById('keyInput').value);
   const markCorrect = parseFloat(document.getElementById('markCorrect').value) || 0;
-  const markWrong = parseFloat(document.getElementById('markWrong').value) || 0;
-  const markUnattempted = parseFloat(document.getElementById('markUnattempted').value) || 0;
+  const markWrong = 0;
+  const markUnattempted = 0;
 
   // merge questions across all sources, de-duped by qid (last occurrence wins)
   const merged = {};
@@ -492,14 +472,7 @@ async function logTestedLink(summary){
     const res = await fetch('/api/log', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        url: urlToLog,
-        total: summary.total,
-        correct: summary.correct,
-        wrong: summary.wrong,
-        unattempted: summary.unattempted,
-        score: summary.totalMarks
-      })
+      body: JSON.stringify({ link: urlToLog, score: summary.totalMarks })
     });
     const data = await res.json();
     if(data.error){ statusEl.textContent = 'Log: '+data.error; return; }
@@ -557,7 +530,6 @@ document.getElementById('clearBtn').addEventListener('click', ()=>{
   uploadedFiles = []; fetchedHTML = '';
   document.getElementById('fileInput').value = '';
   document.getElementById('fileList').textContent = '';
-  document.getElementById('pasteInput').value = '';
   document.getElementById('urlInput').value = '';
   document.getElementById('results').style.display = 'none';
 });
