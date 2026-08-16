@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Exam Response Analyzer</title>
+<style>
+  :root{
+    --bg:#0f1220; --card:#171b2e; --card2:#1e2338; --border:#2a3050;
+    --text:#e8eaf5; --muted:#9aa1c2; --accent:#6c8cff; --green:#3ddc84;
+    --red:#ff5d6c; --yellow:#ffb547;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    background:var(--bg); color:var(--text); padding:24px;
+  }
+  h1{font-size:22px; margin:0 0 4px;}
+  p.sub{color:var(--muted); margin:0 0 24px; font-size:14px;}
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:20px;}
+  @media(max-width:900px){.grid{grid-template-columns:1fr;}}
+  .card{
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    padding:18px; margin-bottom:20px;
+  }
+  .card h2{font-size:15px; margin:0 0 12px; color:var(--text);}
+  .tabs{display:flex; gap:6px; margin-bottom:12px;}
+  .tab{
+    padding:7px 14px; border-radius:8px; background:var(--card2); cursor:pointer;
+    font-size:13px; border:1px solid var(--border); color:var(--muted);
+  }
+  .tab.active{background:var(--accent); color:#fff; border-color:var(--accent);}
+  .pane{display:none;}
+  .pane.active{display:block;}
+  textarea{
+    width:100%; background:var(--card2); color:var(--text); border:1px solid var(--border);
+    border-radius:8px; padding:10px; font-family:monospace; font-size:12px; resize:vertical;
+  }
+  input[type=text], input[type=number]{
+    width:100%; background:var(--card2); color:var(--text); border:1px solid var(--border);
+    border-radius:8px; padding:9px 10px; font-size:13px;
+  }
+  input[type=file]{
+    width:100%; background:var(--card2); border:1px dashed var(--border); border-radius:8px;
+    padding:14px; font-size:13px; color:var(--muted);
+  }
+  label{font-size:12px; color:var(--muted); display:block; margin:8px 0 4px;}
+  .row{display:flex; gap:10px;}
+  .row > div{flex:1;}
+  button{
+    background:var(--accent); color:#fff; border:none; border-radius:8px;
+    padding:10px 18px; font-size:14px; cursor:pointer; font-weight:600; margin-top:10px;
+  }
+  button.secondary{background:var(--card2); border:1px solid var(--border); color:var(--text); font-weight:500;}
+  button:hover{opacity:.9;}
+  .note{font-size:12px; color:var(--muted); margin-top:8px; line-height:1.5;}
+  .note b{color:var(--yellow);}
+  .files-list{font-size:12px; color:var(--muted); margin-top:8px;}
+  .summary{display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:20px;}
+  @media(max-width:700px){.summary{grid-template-columns:repeat(2,1fr);}}
+  .stat{
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    padding:16px; text-align:center;
+  }
+  .stat .num{font-size:26px; font-weight:700;}
+  .stat .lbl{font-size:12px; color:var(--muted); margin-top:4px;}
+  .green{color:var(--green);} .red{color:var(--red);} .yellow{color:var(--yellow);} .accent{color:var(--accent);}
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th,td{padding:8px 10px; border-bottom:1px solid var(--border); text-align:left; white-space:nowrap;}
+  th{color:var(--muted); font-weight:600; position:sticky; top:0; background:var(--card);}
+  tr:hover{background:var(--card2);}
+  .tbl-wrap{overflow-x:auto; max-height:600px; overflow-y:auto;}
+  .badge{padding:3px 9px; border-radius:20px; font-size:11px; font-weight:600;}
+  .badge.correct{background:rgba(61,220,132,.15); color:var(--green);}
+  .badge.wrong{background:rgba(255,93,108,.15); color:var(--red);}
+  .badge.unattempted{background:rgba(255,181,71,.15); color:var(--yellow);}
+  .badge.unknown{background:rgba(154,161,194,.15); color:var(--muted);}
+  #results{display:none;}
+  .toolbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;}
+  .search{max-width:240px;}
+</style>
+</head>
+<body>
+
+<h1>Exam Response Analyzer</h1>
+<p class="sub">Upload / paste your response-sheet HTML, edit the answer key if needed, and get an instant scored report — matched by Question ID, order-independent.</p>
+
+<div class="grid">
+
+  <!-- INPUT CARD -->
+  <div class="card">
+    <h2>1. Provide your response sheet(s)</h2>
+    <div class="tabs">
+      <div class="tab active" data-tab="file">Upload file</div>
+      <div class="tab" data-tab="paste">Paste HTML</div>
+      <div class="tab" data-tab="url">Fetch URL</div>
+    </div>
+
+    <div class="pane active" id="pane-file">
+      <input type="file" id="fileInput" accept=".html,.htm" multiple>
+      <div class="files-list" id="fileList"></div>
+      <div class="note">Right-click the result page → <b>Save As → Webpage, HTML only</b> (or Ctrl+S), then upload it here. You can select multiple files at once if your exam has separate section pages.</div>
+    </div>
+
+    <div class="pane" id="pane-paste">
+      <textarea id="pasteInput" rows="8" placeholder="Right-click the result page → View Page Source → Select All → Copy → paste here"></textarea>
+      <div class="note">Most reliable if file upload doesn't work. Paste the full page source.</div>
+    </div>
+
+    <div class="pane" id="pane-url">
+      <input type="text" id="urlInput" placeholder="https://cdn3.digialm.com/.../....html">
+      <button class="secondary" id="fetchBtn" type="button">Fetch via proxy</button>
+      <div class="note">Fetched through this app's own server-side proxy (<code>/api/fetch</code>), so browser CORS restrictions don't apply. Requires this page to be deployed (e.g. on Vercel) — it won't work if you just open <code>index.html</code> locally as a file, since there's no server to run the proxy.</div>
+    </div>
+  </div>
+
+  <!-- ANSWER KEY CARD -->
+  <div class="card">
+    <h2>2. Answer key & marking scheme</h2>
+    <label>Answer key (one per line: <code>QuestionID,CorrectOptionID</code>)</label>
+    <textarea id="keyInput" rows="8"></textarea>
+    <div class="row">
+      <div>
+        <label>Marks for correct</label>
+        <input type="number" id="markCorrect" value="4" step="0.25">
+      </div>
+      <div>
+        <label>Marks for wrong</label>
+        <input type="number" id="markWrong" value="-1" step="0.25">
+      </div>
+      <div>
+        <label>Marks for unattempted</label>
+        <input type="number" id="markUnattempted" value="0" step="0.25">
+      </div>
+    </div>
+    <div class="note">Pre-loaded with the key you supplied (150 questions). Edit or replace it entirely — format stays <code>QuestionID,CorrectOptionID</code>, one pair per line.</div>
+  </div>
+
+</div>
+
+<button id="analyzeBtn" type="button">Analyze &amp; Score</button>
+<button class="secondary" id="clearBtn" type="button">Clear all</button>
+
+<div id="results">
+  <div class="summary" id="summaryCards"></div>
+
+  <div class="card">
+    <div class="toolbar">
+      <h2 style="margin:0;">Question-wise detail</h2>
+      <div style="display:flex; gap:8px;">
+        <input type="text" class="search" id="searchBox" placeholder="Search Question ID...">
+        <button class="secondary" id="exportBtn" type="button">Export CSV</button>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table id="resultTable">
+        <thead>
+          <tr>
+            <th>#</th><th>Question ID</th><th>Status</th><th>Chosen Opt#</th>
+            <th>Chosen Option ID</th><th>Correct Option ID</th><th>Result</th><th>Marks</th>
+          </tr>
+        </thead>
+        <tbody id="resultBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------- Default answer key (from provided key sheet) ----------
+const DEFAULT_KEY = `4818046909,48180426903
+4818046910,48180426906
+4818046911,48180426906
+4818046912,48180426914
+4818046913,48180426919
+4818046914,48180426924
+4818046915,48180426925
+4818046916,48180426930
+4818046917,48180426933
+4818046918,48180426940
+4818046919,48180426941
+4818046920,48180426946
+4818046921,48180426950
+4818046922,48180426954
+4818046923,48180426960
+4818046924,48180426964
+4818046925,48180426966
+4818046926,48180426996
+4818046927,48180426974
+4818046928,48180426977
+4818046929,48180426981
+4818046930,48180426985
+4818046931,48180426990
+4818046932,48180426994
+4818046933,48180426998
+4818046934,48180427003
+4818046935,48180427007
+4818046936,48180427009
+4818046937,48180427013
+4818046938,48180427020
+4818046939,48180427023
+4818046940,48180427026
+4818046941,48180427031
+4818046942,48180427035
+4818046943,48180427040
+4818046944,48180427043
+4818046945,48180427048
+4818046946,48180427050
+4818046947,48180427056
+4818046948,48180427057
+4818046949,48180427062
+4818046950,48180427067
+4818046951,48180427069
+4818046952,48180427074
+4818046953,48180427078
+4818046955,48180427082
+4818046956,48180427086
+4818046957,48180427090
+4818046958,48180427095
+4818046959,48180427097
+4818046960,48180427101
+4818046961,48180427106
+4818046962,48180427111
+4818046963,48180427114
+4818046964,48180427117
+4818046965,48180427124
+4818046966,48180427126
+4818046967,48180427129
+4818046968,48180427133
+4818046969,48180427139
+4818046970,48180427142
+4818046971,48180427148
+4818046972,48180427150
+4818046973,48180427156
+4818046974,48180427157
+4818046975,48180427163
+4818046976,48180427168
+4818046977,48180427169
+4818046978,48180427175
+4818046979,48180427177
+4818046980,48180427181
+4818046981,48180427188
+4818046982,48180427191
+4818046983,48180427195
+4818046984,48180427197
+4818046985,48180427202
+4818046986,48180427205
+4818046987,48180427209
+4818046988,48180427213
+4818046989,48180427217
+4818046990,48180427222
+4818046991,48180427225
+4818046992,48180427230
+4818046993,48180427234
+4818046994,48180427237
+4818046995,48180427243
+4818046996,48180427245
+4818046997,48180427251
+4818046998,48180427256
+4818046999,48180427257
+4818047000,48180427264
+4818047001,48180427267
+4818047002,48180427270
+4818047003,48180427274
+4818047004,48180427277
+4818047005,48180427284
+4818047006,48180427288
+4818047007,48180427290
+4818047008,48180427295
+4818047009,48180427299
+4818047010,48180427303
+4818047011,48180427308
+4818047012,48180427311
+4818047013,48180427316
+4818047014,48180427317
+4818047015,48180427321
+4818047016,48180427325
+4818047017,48180427331
+4818047018,48180427333
+4818047019,48180427340
+4818047020,48180427343
+4818047021,48180427347
+4818047022,48180427351
+4818047023,48180427354
+4818047024,48180427360
+4818047025,48180427364
+4818047026,48180427367
+4818047027,48180427372
+4818047028,48180427375
+4818047029,48180427379
+4818047030,48180427383
+4818047031,48180427387
+4818047032,48180427390
+4818047033,48180427393
+4818047034,48180427399
+4818047035,48180427402
+4818047036,48180427408
+4818047037,48180427409
+4818047038,48180427415
+4818047039,48180427418
+4818047040,48180427422
+4818047041,48180427428
+4818047042,48180427431
+4818047043,48180427433
+4818047044,48180427439
+4818047045,48180427444
+4818047046,48180427445
+4818047047,48180427450
+4818047048,48180427453
+4818047049,48180427459
+4818047051,48180427464
+4818047052,48180427467
+4818047053,48180427472
+4818047054,48180427473
+4818047055,48180427478
+4818047057,48180427483
+4818047058,48180427485
+4818047059,48180427490
+4818047060,48180427495
+4818047061,48180427500`;
+
+document.getElementById('keyInput').value = DEFAULT_KEY;
+
+// ---------- Tabs ----------
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('pane-'+tab.dataset.tab).classList.add('active');
+  });
+});
+
+// ---------- File list preview ----------
+let uploadedFiles = [];
+document.getElementById('fileInput').addEventListener('change', e=>{
+  uploadedFiles = Array.from(e.target.files);
+  document.getElementById('fileList').textContent =
+    uploadedFiles.length ? `${uploadedFiles.length} file(s) selected: ${uploadedFiles.map(f=>f.name).join(', ')}` : '';
+});
+
+// ---------- URL fetch via our own server-side proxy (/api/fetch) ----------
+let fetchedHTML = '';
+document.getElementById('fetchBtn').addEventListener('click', async ()=>{
+  const url = document.getElementById('urlInput').value.trim();
+  if(!url) return alert('Paste a URL first.');
+  const btn = document.getElementById('fetchBtn');
+  btn.textContent = 'Fetching...'; btn.disabled = true;
+  try{
+    const res = await fetch('/api/fetch?url=' + encodeURIComponent(url));
+    const data = await res.json();
+    if(data.error) throw new Error(data.error);
+    if(!data.html) throw new Error('Empty response from proxy.');
+    fetchedHTML = data.html;
+    alert('Fetched successfully (HTTP '+data.status+')! Click "Analyze & Score" to proceed.');
+  }catch(err){
+    fetchedHTML = '';
+    alert('Fetch failed: '+err.message+'\n\nIf you\'re opening this file locally (not deployed), the proxy endpoint won\'t exist — deploy to Vercel first, or use "Upload file" / "Paste HTML" instead.');
+  }
+  btn.textContent = 'Fetch via proxy'; btn.disabled = false;
+});
+
+// ---------- Parser ----------
+function parseQuestionsFromHTML(htmlString){
+  const doc = new DOMParser().parseFromString(htmlString, 'text/html');
+  const cells = Array.from(doc.querySelectorAll('td'));
+  const pairs = [];
+  for(let i=0;i<cells.length;i++){
+    const td = cells[i];
+    if(td.getAttribute('align') === 'right'){
+      const key = td.textContent.replace(/\s+/g,' ').trim().replace(/:\s*$/,'').trim();
+      const valTd = cells[i+1];
+      if(valTd && valTd.classList && valTd.classList.contains('bold')){
+        const val = valTd.textContent.replace(/\s+/g,' ').trim();
+        pairs.push([key.toLowerCase(), val]);
+      }
+    }
+  }
+  const questions = [];
+  let current = null;
+  for(const [k,v] of pairs){
+    if(k.startsWith('question type')){
+      if(current && current['question id']) questions.push(current);
+      current = {};
+    }
+    if(!current) current = {};
+    current[k] = v;
+  }
+  if(current && current['question id']) questions.push(current);
+
+  return questions.map(q=>{
+    const qid = q['question id'];
+    const options = [1,2,3,4,5].map(n=>q['option '+n+' id']).filter(Boolean);
+    let chosenIdx = null;
+    if(q['chosen option'] && /^\d+$/.test(q['chosen option'].trim())){
+      chosenIdx = parseInt(q['chosen option'].trim(),10);
+    }
+    let chosenOptionId = q['chosen option id'] || (chosenIdx && options[chosenIdx-1]) || null;
+    const status = q['status'] || (chosenOptionId ? 'Answered' : 'Not Answered');
+    return {qid, options, chosenIdx, chosenOptionId, status};
+  });
+}
+
+function parseAnswerKey(text){
+  const map = {};
+  text.split('\n').forEach(line=>{
+    const parts = line.split(',').map(s=>s.trim()).filter(Boolean);
+    if(parts.length>=2) map[parts[0]] = parts[1];
+  });
+  return map;
+}
+
+// ---------- Analyze ----------
+document.getElementById('analyzeBtn').addEventListener('click', async ()=>{
+  let htmlSources = [];
+
+  if(uploadedFiles.length){
+    for(const f of uploadedFiles){
+      htmlSources.push(await f.text());
+    }
+  }
+  const pasted = document.getElementById('pasteInput').value.trim();
+  if(pasted) htmlSources.push(pasted);
+  if(fetchedHTML) htmlSources.push(fetchedHTML);
+
+  if(!htmlSources.length){
+    alert('Please upload a file, paste HTML, or fetch a URL first.');
+    return;
+  }
+
+  const keyMap = parseAnswerKey(document.getElementById('keyInput').value);
+  const markCorrect = parseFloat(document.getElementById('markCorrect').value) || 0;
+  const markWrong = parseFloat(document.getElementById('markWrong').value) || 0;
+  const markUnattempted = parseFloat(document.getElementById('markUnattempted').value) || 0;
+
+  // merge questions across all sources, de-duped by qid (last occurrence wins)
+  const merged = {};
+  htmlSources.forEach(html=>{
+    parseQuestionsFromHTML(html).forEach(q=>{ merged[q.qid] = q; });
+  });
+  const allQuestions = Object.values(merged);
+
+  if(!allQuestions.length){
+    alert('No questions were detected in the provided HTML. Make sure you pasted/uploaded the full response-sheet page source.');
+    return;
+  }
+
+  let correct=0, wrong=0, unattempted=0, unknownKey=0, totalMarks=0;
+  const rows = allQuestions.map((q,i)=>{
+    const correctId = keyMap[q.qid];
+    let result, marks=0;
+    if(!q.chosenOptionId){
+      result='unattempted'; unattempted++; marks=markUnattempted;
+    } else if(!correctId){
+      result='unknown'; unknownKey++;
+    } else if(q.chosenOptionId === correctId){
+      result='correct'; correct++; marks=markCorrect;
+    } else {
+      result='wrong'; wrong++; marks=markWrong;
+    }
+    totalMarks += marks;
+    return {i:i+1, qid:q.qid, status:q.status, chosenIdx:q.chosenIdx ?? '--',
+      chosenOptionId:q.chosenOptionId || '--', correctId: correctId || '—', result, marks};
+  });
+
+  renderSummary({total:allQuestions.length, correct, wrong, unattempted, unknownKey, totalMarks});
+  renderTable(rows);
+  document.getElementById('results').style.display='block';
+  document.getElementById('results').scrollIntoView({behavior:'smooth'});
+});
+
+function renderSummary(s){
+  const cards = [
+    {num:s.total, lbl:'Total Questions', cls:'accent'},
+    {num:s.correct, lbl:'Correct', cls:'green'},
+    {num:s.wrong, lbl:'Wrong', cls:'red'},
+    {num:s.unattempted, lbl:'Unattempted', cls:'yellow'},
+    {num:s.totalMarks, lbl:'Score', cls:'accent'},
+  ];
+  document.getElementById('summaryCards').innerHTML = cards.map(c=>
+    `<div class="stat"><div class="num ${c.cls}">${c.num}</div><div class="lbl">${c.lbl}</div></div>`
+  ).join('') + (s.unknownKey ? `<div class="stat"><div class="num yellow">${s.unknownKey}</div><div class="lbl">No key found</div></div>` : '');
+}
+
+let lastRows = [];
+function renderTable(rows){
+  lastRows = rows;
+  const badge = r => r==='correct' ? '<span class="badge correct">Correct</span>'
+    : r==='wrong' ? '<span class="badge wrong">Wrong</span>'
+    : r==='unattempted' ? '<span class="badge unattempted">Unattempted</span>'
+    : '<span class="badge unknown">No key</span>';
+  document.getElementById('resultBody').innerHTML = rows.map(r=>`
+    <tr>
+      <td>${r.i}</td><td>${r.qid}</td><td>${r.status}</td><td>${r.chosenIdx}</td>
+      <td>${r.chosenOptionId}</td><td>${r.correctId}</td><td>${badge(r.result)}</td><td>${r.marks}</td>
+    </tr>`).join('');
+}
+
+document.getElementById('searchBox').addEventListener('input', e=>{
+  const q = e.target.value.trim();
+  renderTable(q ? lastRows.filter(r=>r.qid.includes(q)) : lastRows);
+});
+
+document.getElementById('exportBtn').addEventListener('click', ()=>{
+  const header = ['#','QuestionID','Status','ChosenOpt#','ChosenOptionID','CorrectOptionID','Result','Marks'];
+  const csv = [header.join(',')].concat(lastRows.map(r=>
+    [r.i,r.qid,r.status,r.chosenIdx,r.chosenOptionId,r.correctId,r.result,r.marks].join(',')
+  )).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'exam_result.csv';
+  a.click();
+});
+
+document.getElementById('clearBtn').addEventListener('click', ()=>{
+  uploadedFiles = []; fetchedHTML = '';
+  document.getElementById('fileInput').value = '';
+  document.getElementById('fileList').textContent = '';
+  document.getElementById('pasteInput').value = '';
+  document.getElementById('urlInput').value = '';
+  document.getElementById('results').style.display = 'none';
+});
+</script>
+</body>
+</html>
