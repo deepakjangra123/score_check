@@ -15,6 +15,68 @@ exam-score-checker/
 └── README.md
 ```
 
+## Test locally before deploying
+
+1. Install the Vercel CLI if you haven't already:
+   ```
+   npm install -g vercel
+   ```
+2. From inside this folder, run:
+   ```
+   cd exam-score-checker
+   vercel dev
+   ```
+3. First run will ask a few setup questions — accept the defaults (link to
+   a new project, no framework detected, etc). It doesn't deploy anything,
+   it just sets up local config.
+4. It'll start a local server, usually at:
+   ```
+   http://localhost:3000
+   ```
+5. Open that URL in your browser. `index.html` loads as the homepage, and
+   the "Fetch URL" tab calls `/api/fetch` exactly as it would in production
+   — `vercel dev` runs the serverless function locally for you.
+
+Note: plain `node index.html` or `node api/fetch.js` won't work — `api/fetch.js`
+is written in Vercel's serverless-function format (`export default function
+handler(req, res)`), which only `vercel dev` (or an actual Vercel deployment)
+knows how to run. `vercel dev` is the correct local equivalent.
+
+To stop the local server, press `Ctrl+C` in the terminal.
+
+Once it works locally, deploy with `vercel --prod` as described below.
+
+## Link logging (optional but on by default)
+
+Every time you click "Analyze & Score" with something in the URL field, the
+app logs that link + score to a plain text file — skipping it if that exact
+link is already logged, so re-running the same link never duplicates it.
+
+Since Vercel functions have no persistent disk, the "text file" is actually
+a GitHub Gist (a small free hosted text file with an API). Set it up once:
+
+1. Go to https://gist.github.com/ → create a new **secret** gist.
+   - Filename: `links.txt`
+   - Content: anything, e.g. `# exam link log`
+   - Click "Create secret gist".
+2. Copy the gist's ID from its URL — e.g. in
+   `https://gist.github.com/yourname/abc123def456`, the ID is `abc123def456`.
+3. Create a GitHub personal access token with **gist** scope:
+   https://github.com/settings/tokens → Generate new token (classic) →
+   check the `gist` box → generate → copy the token (starts with `ghp_`).
+4. In your Vercel project: **Settings → Environment Variables**, add:
+   - `GITHUB_TOKEN` = the token from step 3
+   - `GIST_ID` = the ID from step 2
+5. Redeploy (Deployments tab → ⋯ → Redeploy).
+
+Once set up, the "View link log →" link that appears above your results
+table opens the raw log (`/api/log`) in a new tab — one line per link, with
+timestamp and score.
+
+If you skip this setup, the app still works fine for scoring — you'll just
+see a small "Log: ..." note under your results saying logging isn't
+configured, and nothing breaks.
+
 ## Deploy to Vercel (free)
 
 You have two options — pick whichever is easier for you.

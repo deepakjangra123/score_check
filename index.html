@@ -142,6 +142,10 @@
 
 <div id="results">
   <div class="summary" id="summaryCards"></div>
+  <div style="display:flex; justify-content:space-between; align-items:center; margin:-8px 0 20px; font-size:12px; color:var(--muted);">
+    <span id="logStatus"></span>
+    <a href="/api/log" target="_blank" style="color:var(--accent); text-decoration:none;">View link log →</a>
+  </div>
 
   <div class="card">
     <div class="toolbar">
@@ -350,6 +354,14 @@ document.getElementById('fetchBtn').addEventListener('click', async ()=>{
     const data = await res.json();
     if(data.error) throw new Error(data.error);
     if(!data.html) throw new Error('Empty response from proxy.');
+    if(!data.ok){
+      throw new Error(
+        'The exam portal responded with HTTP '+data.status+' (not the result page). '+
+        'This usually means the link has expired, is session/login-specific, or is incomplete/mistyped — '+
+        'these result links are often single-use or time-limited by the exam server. '+
+        'Try re-copying the link from your browser right after logging in, or use "Upload file" / "Paste HTML" instead.'
+      );
+    }
     fetchedHTML = data.html;
     alert('Fetched successfully (HTTP '+data.status+')! Click "Analyze & Score" to proceed.');
   }catch(err){
@@ -462,11 +474,40 @@ document.getElementById('analyzeBtn').addEventListener('click', async ()=>{
       chosenOptionId:q.chosenOptionId || '--', correctId: correctId || '—', result, marks};
   });
 
-  renderSummary({total:allQuestions.length, correct, wrong, unattempted, unknownKey, totalMarks});
+  const summary = {total:allQuestions.length, correct, wrong, unattempted, unknownKey, totalMarks};
+  renderSummary(summary);
   renderTable(rows);
   document.getElementById('results').style.display='block';
   document.getElementById('results').scrollIntoView({behavior:'smooth'});
+
+  logTestedLink(summary);
 });
+
+async function logTestedLink(summary){
+  const urlToLog = document.getElementById('urlInput').value.trim();
+  const statusEl = document.getElementById('logStatus');
+  statusEl.textContent = '';
+  if(!urlToLog) return; // nothing to log if no link was involved
+  try{
+    const res = await fetch('/api/log', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        url: urlToLog,
+        total: summary.total,
+        correct: summary.correct,
+        wrong: summary.wrong,
+        unattempted: summary.unattempted,
+        score: summary.totalMarks
+      })
+    });
+    const data = await res.json();
+    if(data.error){ statusEl.textContent = 'Log: '+data.error; return; }
+    statusEl.textContent = data.status === 'duplicate' ? 'Link already logged previously.' : 'Link + score logged.';
+  }catch(err){
+    statusEl.textContent = 'Log: could not reach logging endpoint.';
+  }
+}
 
 function renderSummary(s){
   const cards = [
