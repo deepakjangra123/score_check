@@ -1,6 +1,0 @@
-{
-  "name": "exam-score-checker",
-  "version": "1.0.0",
-  "private": true,
-  "description": "Paste an exam result link, fetch it server-side (no CORS issues), auto-score against an answer key."
-}
